@@ -1,7 +1,6 @@
 import pygame
 import time
 from threading import *
-import sys
 
 pygame.init()
 pygame.font.init()
@@ -49,6 +48,10 @@ class Board:
         self.status = None
 
     def draw_grid(self) -> None:
+        """Draws the grid (clean sudoku board).
+
+        :return: None
+        """
         self.screen.blit(img, (0, 0))
         gap = self.width / 9
         for i in range(self.cols + 1):
@@ -80,6 +83,12 @@ class Board:
                 )
 
     def draw_buttons(self, restart_color: tuple=(200, 200, 0), check_color: tuple=(200, 200, 0)) -> None:
+        """Draws all the buttons on the board.
+
+        :param restart_color: tuple, color of the button. changes if the cursor on it
+        :param check_color: tuple, color of the button. changes if the cursor on it
+        :return: None
+        """
         restart_button = (60, 560, 100, 50)
         restart_fnt = pygame.font.SysFont("Comic Sans MS", 20)
         pygame.draw.rect(self.screen, restart_color, restart_button, 0)
@@ -112,6 +121,10 @@ class Board:
         )
 
     def draw_time(self) -> None:
+        """Draws the timer on the board.
+
+        :return: None
+        """
         time_fnt = pygame.font.SysFont("Comic Sans MS", 30)
         time_surf = time_fnt.render(
             "Time - {}".format(self.timer.time), True, (0, 0, 0)
@@ -125,6 +138,10 @@ class Board:
         )
 
     def draw_text(self):
+        """Draws all the text elements.
+
+        :return: None
+        """
         text_pos = (200, 560)
         text_fnt = pygame.font.SysFont("Comic Sans MS", 20)
         if self.status is None:
@@ -139,7 +156,13 @@ class Board:
         pygame.display.update()
 
     def draw_change(self, num: int, row: int=None, col: int=None) -> None:
+        """Draws the given number in the given row-col.
 
+        :param num: int, number to change
+        :param row: int, number of row
+        :param col: int, number of col
+        :return: None
+        """
         if row is not None and col is not None:
             self.cubes[row][col].val = num
             self.redraw()
@@ -154,6 +177,10 @@ class Board:
                             self.redraw()
 
     def redraw(self) -> None:
+        """Redraws all the board elements.
+
+        :return: None
+        """
         self.screen.fill((255, 255, 255))
         self.draw_grid()
         self.draw_buttons()
@@ -161,11 +188,19 @@ class Board:
         self.draw_text()
 
     def update_board(self) -> None:
+        """Updates the cubes values from the board
+
+        :return: None
+        """
         for i in range(self.rows):
             for j in range(self.cols):
                 self.cubes[i][j].val == self.board[i][j]
 
     def if_mouse_on_button(self) -> None:
+        """Check if the cursor is on one of the buttons, if so, chenges the color of the button.
+
+        :return: None
+        """
         pos = pygame.mouse.get_pos()
 
         light_yellow = (255, 255, 0)
@@ -182,6 +217,11 @@ class Board:
         self.draw_buttons(restart_color, check_color)
 
     def clicked(self, pos: tuple) -> None:
+        """Draws rectangle on the clicked square on board.
+
+        :param pos: tuple, conatins x and y value on board
+        :return: None
+        """
         # Return the value of the previous selected cube to False
         if self.selected is not None:
             self.selected.is_seleced = False
@@ -198,6 +238,10 @@ class Board:
         pygame.draw.rect(self.screen, (0, 255, 0), (x, y, gap, gap), 3)
 
     def delete(self) -> None:
+        """Deletes number from board
+
+        :return: None
+        """
         self.selected.val = 0
         self.update_board()
         self.redraw()
@@ -211,6 +255,13 @@ class Board:
                 return False
 
     def valid_placement(self, row: int, col: int, num: int) -> None:
+        """Checks if the number is valid in the sudoku.
+
+        :param row:int, the number of the row
+        :param col:int, the number of the col
+        :param num:int, the number that given tu put in the row,col
+        :return: True or False
+        """
         row_valid = all([num != self.board[row][j] for j in range(9)])
         if row_valid:
             col_valid = all([num != self.board[i][col] for i in range(9)])
@@ -228,13 +279,24 @@ class Board:
         return False
 
     def next_cell_to_fill(self, i: int) -> int:
+        """Finds the next cell to fill with values - (empty one)
+
+        :param i: int, the number of the row to start looking from
+        :return: tuple, row,col where it finds the nect cell to fill
+        """
         for x in range(i, 9):
             for y in range(0, 9):
                 if self.board[x][y] == 0:
                     return x, y
         return -1, -1
+
     def solve_with_gui(self, row=0, col=0) -> bool:
-        ""
+        """Solves the puzzle recursively.
+
+        :param row: int, number of the row to start looking from
+        :param col: int, number of the col to start looking from
+        :return: None
+        """
         row, col = self.next_cell_to_fill(row)
         if row == -1:
             return True
