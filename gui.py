@@ -233,7 +233,6 @@ class Board:
                 if self.board[x][y] == 0:
                     return x, y
         return -1, -1
-git s
     def solve_with_gui(self, row=0, col=0) -> bool:
         ""
         row, col = self.next_cell_to_fill(row)
