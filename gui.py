@@ -1,7 +1,7 @@
 import pygame
 import time
 from threading import *
-
+import sys
 pygame.init()
 pygame.font.init()
 img = pygame.image.load("plain.jpg")
@@ -17,6 +17,105 @@ class Cube:
         self.height = height
         self.is_seleced = False
 
+class Timer(Thread):
+    """
+    Timer class for the stopwatch running on screen. Runs as seperate thread.
+    """
+
+    def __init__(self,screen):
+        Thread.__init__(self)
+        self.time = "00:00"
+        self.running = True
+        self.screen = screen
+        self.seconds = 0
+        self.minutes = 0
+        self.pause_drawing = False
+
+    def run(self) -> None:
+        """
+        Runs the timer.
+        :return: None
+        """
+        str_seconds = "00"
+        str_minutes = "00"
+        while self.running:
+            self.seconds += 1
+            if 60 > self.seconds > 9:
+                str_seconds = str(self.seconds)
+            elif self.seconds == 60:
+                self.seconds = 0
+                self.minutes += 1
+                str_seconds = "00"
+            else:
+                str_seconds = "0{}".format(self.seconds)
+            if 60 > self.minutes > 9:
+                str_minutes = str(self.minutes)
+            elif self.minutes == 60:
+                self.minutes = 0
+            else:
+                str_minutes = "0{}".format(self.minutes)
+            self.time = "{}:{}".format(str_minutes, str_seconds)
+            time.sleep(1)
+
+    def stop(self) -> None:
+        """
+        Stops the timer by changing the while loop condition in run().
+
+        :return: None
+        """
+        self.running = False
+
+    def reset(self) -> None:
+        """
+        Resets the time to 00:00.
+        :return:
+        """
+        self.seconds = 0
+        self.minutes = 0
+        self.running = True
+
+    def draw_time(self) -> None:
+        """Draws the timer on the board.
+
+        :return: None
+        """
+
+        time_fnt = pygame.font.SysFont("Comic Sans MS", 30)
+        time_surf = time_fnt.render(
+            "Time - {}".format(self.time), True, (0, 0, 0)
+        )
+        rect_width = time_surf.get_width()
+        rect_hegiht =  time_surf.get_height()
+        pygame.draw.rect(self.screen, (255, 255, 255), (pygame.display.get_surface().get_width() - rect_width,  pygame.display.get_surface().get_height() - rect_hegiht, rect_width, rect_hegiht), 0)
+        self.screen.blit(
+            time_surf,
+            (
+                pygame.display.get_surface().get_width() - 176,
+                pygame.display.get_surface().get_height() - 43,
+            ),
+        )
+
+    def draw_total_calc_time(self,start_time: str) -> None:
+        """Calculates the "time" took the program to solve (include ןntentional delay)
+            and draw it on the board.
+
+        :param start_time: string, the time that the automatic solve was activated.
+        :return: None
+        """
+        start_minutes,start_seconds = start_time.rsplit(':')
+        end_seconds = self.seconds - int(start_seconds)
+        end_minutes = self.minutes - int(start_minutes)
+        pygame.draw.rect(self.screen, (255, 255, 255), (170, 550, 360, 80), 0)
+        time_fnt1 = pygame.font.SysFont("Comic Sans MS", 20,bold=True)
+        time_surf1 = time_fnt1.render("Done! Took me 00:{} seconds.".format(end_seconds), True, (0, 0, 0))
+        self.screen.blit(time_surf1,(210,575))
+        time_surf2 = time_fnt1.render("Think you can do better?",True,(0,0,0))
+        self.screen.blit(time_surf2,(215,598))
+        time_surf3 = time_fnt1.render("Hit 'Restart'",True,(0,0,0))
+        self.screen.blit(time_surf3,(245,620))
+
+
+        pygame.display.update()
 
 class Board:
     b = [
@@ -31,7 +130,7 @@ class Board:
         [0, 4, 9, 2, 0, 6, 0, 0, 7],
     ]
 
-    def __init__(self, rows, cols, width, height, screen, timer):
+    def __init__(self, rows, cols, width, height, screen):
         self.rows = rows
         self.cols = cols
         self.cubes = [
@@ -44,8 +143,7 @@ class Board:
         self.screen = screen
         self.board = self.b
         self.start_board = [[self.b[i][j] for j in range(cols)] for i in range(rows)]
-        self.timer = timer
-        self.status = None
+        self.running_status = None
 
     def draw_grid(self) -> None:
         """Draws the grid (clean sudoku board).
@@ -120,39 +218,22 @@ class Board:
             ),
         )
 
-    def draw_time(self) -> None:
-        """Draws the timer on the board.
-
-        :return: None
-        """
-        time_fnt = pygame.font.SysFont("Comic Sans MS", 30)
-        time_surf = time_fnt.render(
-            "Time - {}".format(self.timer.time), True, (0, 0, 0)
-        )
-        self.screen.blit(
-            time_surf,
-            (
-                pygame.display.get_surface().get_width() - time_surf.get_width(),
-                pygame.display.get_surface().get_height() - time_surf.get_height(),
-            ),
-        )
-
-    def draw_text(self):
+    def draw_text(self) -> None:
         """Draws all the text elements.
 
         :return: None
         """
         text_pos = (200, 560)
-        text_fnt = pygame.font.SysFont("Comic Sans MS", 20)
-        if self.status is None:
+        text_fnt = pygame.font.SysFont("Comic Sans MS", 20,bold=True)
+        if self.running_status is None:
             text_surf = text_fnt.render("Press Space if you give up",True,(0,0,0))
             self.screen.blit(text_surf,text_pos)
-        elif self.status:
-            text_surf = text_fnt.render("Now wait untill I solve for you...",True,(0,0,0))
+        elif self.running_status:
+            text_surf = text_fnt.render("Now wait untill I solve for you.",True,(0,0,0))
             self.screen.blit(text_surf,text_pos)
-        else:
-            text_surf = text_fnt.render("Done! Press 'Restart' to try again", True, (0, 0, 0))
-            self.screen.blit(text_surf, text_pos)
+            text_surf = text_fnt.render("Im backtracking...",True,(0,0,0))
+            self.screen.blit(text_surf,(text_pos[0],text_pos[1] + 23))
+
         pygame.display.update()
 
     def draw_change(self, num: int, row: int=None, col: int=None) -> None:
@@ -173,7 +254,6 @@ class Board:
                             self.cubes[i][j].val = num
                             self.board[i][j] = num
                             self.update_board()
-                            self.cubes[i][j].is_seleced = False
                             self.redraw()
 
     def redraw(self) -> None:
@@ -184,7 +264,6 @@ class Board:
         self.screen.fill((255, 255, 255))
         self.draw_grid()
         self.draw_buttons()
-        self.draw_time()
         self.draw_text()
 
     def update_board(self) -> None:
@@ -246,13 +325,71 @@ class Board:
         self.update_board()
         self.redraw()
 
+    def checking(self) -> None:
+        """Draws the text 'Checking' with effect of calculating.
+
+        :return: None
+        """
+        text_fnt = pygame.font.SysFont("Comic Sans MS", 35)
+        pygame.draw.rect(self.screen, (255, 255, 255), (170, 550, 350, 80), 0)
+        for i in range(4):
+            for j in range(1,5):
+                text_surf = text_fnt.render("Checking" + "."*j,True,(0,0,0))
+                pygame.draw.rect(self.screen, (255, 255, 255), (200,600,text_surf.get_width(), text_surf.get_height()), 0)
+                self.screen.blit(text_surf,(200,590))
+                pygame.time.delay(300)
+                pygame.display.update()
+            pygame.draw.rect(self.screen, (255, 255, 255), (346, 620, 35, 20), 0)
+            pygame.display.update()
+
+    def done_checking(self,is_valid: bool) -> None:
+        """Draws the answer of the computer after hecking the board.
+
+        :param is_valid: bool, points if the solution is valid or not
+        :return: None
+        """
+        text_fnt1 = pygame.font.SysFont("Comic Sans MS", 25,bold=True)
+        text_fnt2 = pygame.font.SysFont("Comic Sans MS", 25)
+        pygame.draw.rect(self.screen, (255, 255, 255), (170, 550, 350, 90), 0)
+        if is_valid:
+            text_surf1 = text_fnt1.render("Done. Correct answer!",True,(0,255,0))
+            text_surf2 = text_fnt2.render("Press 'Restart' to play again",True,(0,255,0))
+            pygame.draw.rect(self.screen, (255, 255, 255), (200, 590, text_surf2.get_width(), text_surf2.get_height()*2), 0)
+            self.screen.blit(text_surf1, (200, 580))
+            self.screen.blit(text_surf2, (200, 605))
+        else:
+            text_surf1 = text_fnt1.render("Wrong answer. try again!",True,(255,0,0))
+            pygame.draw.rect(self.screen, (255, 255, 255), (200, 600, text_surf1.get_width(), text_surf1.get_height()), 0)
+            self.screen.blit(text_surf1, (200, 600))
+
     def check_solution(self) -> bool:
+        self.checking()
         for i in range(self.rows):
             if sum(x for x in self.board[i]) != 45:
                 return False
         for j in range(self.cols):
             if sum(self.board[i][j] for i in range(self.cols)) != 45:
                 return False
+        for i in range(0,9,3):
+            for j in range(0,9,3):
+                sum_grid = 0
+                for k in range(i, i +3)  :
+                    for m in range(j, j+3):
+                        sum_grid += self.board[k][m]
+                if sum_grid != 45:
+                    return False
+
+        return True
+
+    def restart_board(self) -> None:
+        """Sets the values of the board back the the initial values.
+
+        :return: None
+        """
+        self.board = [
+            [self.start_board[i][j] for j in range(self.cols)]
+            for i in range(self.rows)
+        ]
 
     def valid_placement(self, row: int, col: int, num: int) -> None:
         """Checks if the number is valid in the sudoku.
@@ -308,55 +445,22 @@ class Board:
                 self.draw_change(val, row, col)
                 pygame.time.delay(100)
                 pygame.display.update()
+                self.cubes[row][col].is_seleced = False
                 if self.solve_with_gui(row, col):
                     return True
-                self.cubes[row][col].is_seleced = False
                 self.cubes[row][col].val = 0
                 self.board[row][col] = 0
         return False
 
 
-class Timer(Thread):
-    def __init__(self):
-        Thread.__init__(self)
-        self.time = "00:00"
-        self.running = True
-
-    def run(self):
-        seconds = 0
-        str_seconds = "00"
-        minutes = 0
-        str_minutes = "00"
-        while self.running:
-            seconds += 1
-            if 60 > seconds > 9:
-                str_seconds = str(seconds)
-            elif seconds == 60:
-                seconds = 0
-                minutes += 1
-                str_seconds = "00"
-            else:
-                str_seconds = "0{}".format(seconds)
-            if 60 > minutes > 9:
-                str_minutes = str(minutes)
-            elif minutes == 60:
-                minutes = 0
-            else:
-                str_minutes = "0{}".format(minutes)
-            self.time = "{}:{}".format(str_minutes, str_seconds)
-            time.sleep(1)
-
-    def exit(self):
-        self.running = False
 
 def main():
     screen = pygame.display.set_mode((540, 700))
     screen.fill((255, 255, 255))
     pygame.display.set_caption("Sudoku")
-    timer = Timer()
+    timer = Timer(screen)
     timer.start()
-
-    board = Board(9, 9, 540, 540, screen, timer)
+    board = Board(9, 9, 540, 540, screen)
     board.redraw()
     is_running = True
 
@@ -365,7 +469,7 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 is_running = False
-                timer.exit()
+                timer.stop()
             if event.type == pygame.MOUSEBUTTONDOWN:
                 pos = pygame.mouse.get_pos()
                 print(pos)
@@ -374,18 +478,22 @@ def main():
                 else:
                     board.clicked(pos)
 
-                #restart button
+                #if restart button clicked
                 if 160 > pos[0] > 60 and 610 > pos[1] > 560:
-                    board.status = None
-
-                    board.board = [
-                        [board.start_board[i][j] for j in range(board.cols)]
-                        for i in range(board.rows)
-                    ]
+                    board.running_status = None
+                    board.restart_board()
+                    timer.reset()
+                    timer.pause_drawing = False
                     board.redraw()
-                #check button
+
+                #if check button clicked
                 if 160 > pos[0] > 60 and 670 > pos[1] > 620:
-                    pass
+                    if board.check_solution():
+                        board.done_checking(True)
+                        timer.stop()
+                    else:
+                        board.done_checking(False)
+
             if event.type == pygame.KEYDOWN:
                 key = None
                 if event.key == pygame.K_1:
@@ -409,12 +517,19 @@ def main():
                 elif event.key == pygame.K_DELETE or event.key == pygame.K_BACKSPACE:
                     board.delete()
                 elif event.key == pygame.K_SPACE:
-                    board.status = True
+                    start_calc_time = timer.time
+                    board.running_status = True
+                    board.restart_board()
                     board.solve_with_gui()
-                    board.status = False
-                    board.redraw()
+                    timer.draw_total_calc_time(start_calc_time)
+                    timer.pause_drawing = True
+                    board.running_status = False
                 if key is not None:
                     board.draw_change(key)
+        if timer.pause_drawing:
+            pass
+        else:
+            timer.draw_time()
         pygame.display.update()
 
 
