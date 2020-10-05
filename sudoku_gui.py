@@ -1,7 +1,7 @@
 import pygame
 import time
 from threading import *
-import sys
+import getPuzzle
 pygame.init()
 pygame.font.init()
 img = pygame.image.load("plain.jpg")
@@ -36,8 +36,6 @@ class Timer(Thread):
         Runs the timer.
         :return: None
         """
-        str_seconds = "00"
-        str_minutes = "00"
         while self.running:
             self.seconds += 1
             if 60 > self.seconds > 9:
@@ -104,10 +102,12 @@ class Timer(Thread):
         """
         start_minutes,start_seconds = start_time.rsplit(':')
         end_seconds = self.seconds - int(start_seconds)
+        if end_seconds < 10:
+            end_seconds = str('0{}'.format(end_seconds))
         end_minutes = self.minutes - int(start_minutes)
         pygame.draw.rect(self.screen, (255, 255, 255), (170, 550, 360, 80), 0)
         time_fnt1 = pygame.font.SysFont("Comic Sans MS", 20,bold=True)
-        time_surf1 = time_fnt1.render("Done! Took me 00:{} seconds.".format(end_seconds), True, (0, 0, 0))
+        time_surf1 = time_fnt1.render("Done! Took me 0{}:{} seconds.".format(end_minutes,end_seconds), True, (0, 0, 0))
         self.screen.blit(time_surf1,(210,575))
         time_surf2 = time_fnt1.render("Think you can do better?",True,(0,0,0))
         self.screen.blit(time_surf2,(215,598))
@@ -142,7 +142,7 @@ class Board:
         self.selected = None
         self.screen = screen
         self.board = self.b
-        self.start_board = [[self.b[i][j] for j in range(cols)] for i in range(rows)]
+        self.start_board = [[self.board[i][j] for j in range(cols)] for i in range(rows)]
         self.running_status = None
 
     def draw_grid(self) -> None:
@@ -180,25 +180,34 @@ class Board:
                     ),
                 )
 
-    def draw_buttons(self, restart_color: tuple=(200, 200, 0), check_color: tuple=(200, 200, 0)) -> None:
+    def draw_buttons(self, restart_color=(200, 200, 0), check_color=(200, 200, 0),mix_color=(0, 200, 0)) -> None:
         """Draws all the buttons on the board.
 
+        :param mix_color:
         :param restart_color: tuple, color of the button. changes if the cursor on it
         :param check_color: tuple, color of the button. changes if the cursor on it
         :return: None
         """
-        restart_button = (60, 560, 100, 50)
+        restart_button = (30, 560, 100, 50)
         restart_fnt = pygame.font.SysFont("Comic Sans MS", 20)
+        restart_surf = restart_fnt.render("Restart", True, (0, 0, 0))
         pygame.draw.rect(self.screen, restart_color, restart_button, 0)
         pygame.draw.rect(self.screen, (0, 0, 0), restart_button, 2)
-        restart_surf = restart_fnt.render("Restart", True, (0, 0, 0))
 
-        check_button = (60, 620, 100, 50)
+        check_button = (30, 620, 100, 50)
         check_fnt = pygame.font.SysFont("Comic Sans MS", 20)
-
+        check_surf = check_fnt.render("Check", True, (0, 0, 0))
         pygame.draw.rect(self.screen, check_color, check_button, 0)
         pygame.draw.rect(self.screen, (0, 0, 0), check_button, 2)
-        check_surf = check_fnt.render("Check", True, (0, 0, 0))
+
+        mix_button = (135, 560, 50, 110)
+        mix_fnt = pygame.font.SysFont("Comic Sans MS", 20)
+        mix_surf = mix_fnt.render("Generate", True, (0,0,0))
+        mix_surf = pygame.transform.rotate(mix_surf, 90)
+        pygame.draw.rect(self.screen, mix_color, mix_button, 0)
+        pygame.draw.rect(self.screen, (0, 0, 0), mix_button, 2)
+
+
 
         self.screen.blit(
             restart_surf,
@@ -215,6 +224,16 @@ class Board:
             (
                 check_button[0] + (check_button[2] / 2 - check_surf.get_width() // 2),
                 check_button[1] + (check_button[3] / 2) - check_surf.get_height() // 2,
+            ),
+        )
+        self.screen.blit(
+            mix_surf,
+            (
+                mix_button[0]
+                + (mix_button[2] / 2 - mix_surf.get_width() // 2),
+                mix_button[1]
+                + (mix_button[3] / 2)
+                - mix_surf.get_height() // 2,
             ),
         )
 
@@ -275,6 +294,14 @@ class Board:
             for j in range(self.cols):
                 self.cubes[i][j].val == self.board[i][j]
 
+    def generate_board(self):
+        new_board = getPuzzle.try_get_puzzle(0)
+        new_board = new_board.rsplit(' ')
+        self.board = [[int(new_board[j+9*i]) for j in range(self.cols)] for i in range(self.rows)]
+        self.start_board = [[int(new_board[j+9*i]) for j in range(self.cols)] for i in range(self.rows)]
+        self.update_board()
+        self.redraw()
+
     def if_mouse_on_button(self) -> None:
         """Check if the cursor is on one of the buttons, if so, chenges the color of the button.
 
@@ -284,18 +311,30 @@ class Board:
 
         light_yellow = (255, 255, 0)
         dark_yellow = (200, 200, 0)
-        if 160 > pos[0] > 60 and 610 > pos[1] > 560:
+        light_green = (0, 255, 0)
+        dark_green = (0, 200, 0)
+
+        #if mouse on restart button
+        if 130 > pos[0] > 30 and 610 > pos[1] > 560:
             restart_color = light_yellow
         else:
             restart_color = dark_yellow
 
-        if 160 > pos[0] > 60 and 670 > pos[1] > 620:
+        #if mouse on check button
+        if 130 > pos[0] > 30 and 670 > pos[1] > 620:
             check_color = light_yellow
         else:
             check_color = dark_yellow
-        self.draw_buttons(restart_color, check_color)
 
-    def clicked(self, pos: tuple) -> None:
+        #if mouse on generate button
+        if 185 > pos[0] > 135 and 670 > pos[1] > 560:
+            mix_color = light_green
+        else:
+            mix_color = dark_green
+
+        self.draw_buttons(restart_color, check_color,mix_color)
+
+    def cell_clicked(self, pos: tuple) -> None:
         """Draws rectangle on the clicked square on board.
 
         :param pos: tuple, conatins x and y value on board
@@ -331,15 +370,15 @@ class Board:
         :return: None
         """
         text_fnt = pygame.font.SysFont("Comic Sans MS", 35)
-        pygame.draw.rect(self.screen, (255, 255, 255), (170, 550, 350, 80), 0)
+        pygame.draw.rect(self.screen, (255, 255, 255), (190, 550, 350, 150), 0)
         for i in range(4):
             for j in range(1,5):
                 text_surf = text_fnt.render("Checking" + "."*j,True,(0,0,0))
-                pygame.draw.rect(self.screen, (255, 255, 255), (200,600,text_surf.get_width(), text_surf.get_height()), 0)
-                self.screen.blit(text_surf,(200,590))
+                pygame.draw.rect(self.screen, (255, 255, 255), (250,600,text_surf.get_width(), text_surf.get_height()), 0)
+                self.screen.blit(text_surf,(250,590))
                 pygame.time.delay(300)
                 pygame.display.update()
-            pygame.draw.rect(self.screen, (255, 255, 255), (346, 620, 35, 20), 0)
+            pygame.draw.rect(self.screen, (255, 255, 255), (396, 620, 35, 20), 0)
             pygame.display.update()
 
     def done_checking(self,is_valid: bool) -> None:
@@ -349,14 +388,18 @@ class Board:
         :return: None
         """
         text_fnt1 = pygame.font.SysFont("Comic Sans MS", 25,bold=True)
-        text_fnt2 = pygame.font.SysFont("Comic Sans MS", 25)
+        text_fnt2 = pygame.font.SysFont("Comic Sans MS", 25, bold=True)
+        text_fnt3 = pygame.font.SysFont("Comic Sans MS", 25, bold=True)
         pygame.draw.rect(self.screen, (255, 255, 255), (170, 550, 350, 90), 0)
         if is_valid:
             text_surf1 = text_fnt1.render("Done. Correct answer!",True,(0,255,0))
-            text_surf2 = text_fnt2.render("Press 'Restart' to play again",True,(0,255,0))
-            pygame.draw.rect(self.screen, (255, 255, 255), (200, 590, text_surf2.get_width(), text_surf2.get_height()*2), 0)
-            self.screen.blit(text_surf1, (200, 580))
-            self.screen.blit(text_surf2, (200, 605))
+            text_surf2 = text_fnt2.render("Press 'Restart'",True,(0,255,0))
+            text_surf3 = text_fnt3.render("to play again",True,(0,255,0))
+
+            pygame.draw.rect(self.screen, (255, 255, 255), (200, 590, text_surf1.get_width(), text_surf1.get_height()*2), 0)
+            self.screen.blit(text_surf1, (210, 565))
+            self.screen.blit(text_surf2, (240, 590))
+            self.screen.blit(text_surf3,(250,615))
         else:
             text_surf1 = text_fnt1.render("Wrong answer. try again!",True,(255,0,0))
             pygame.draw.rect(self.screen, (255, 255, 255), (200, 600, text_surf1.get_width(), text_surf1.get_height()), 0)
@@ -427,6 +470,19 @@ class Board:
                     return x, y
         return -1, -1
 
+    def generating(self):
+        text_fnt = pygame.font.SysFont("Comic Sans MS", 35)
+        pygame.draw.rect(self.screen, (255, 255, 255), (190, 550, 350, 150), 0)
+        for i in range(2):
+            for j in range(1,5):
+                text_surf = text_fnt.render("Generating" + "."*j,True,(0,0,0))
+                pygame.draw.rect(self.screen, (255, 255, 255), (250,600,text_surf.get_width(), text_surf.get_height()), 0)
+                self.screen.blit(text_surf,(250,590))
+                pygame.time.delay(300)
+                pygame.display.update()
+            pygame.draw.rect(self.screen, (255, 255, 255), (427, 620, 35, 20), 0)
+            pygame.display.update()
+
     def solve_with_gui(self, row=0, col=0) -> bool:
         """Solves the puzzle recursively.
 
@@ -443,7 +499,7 @@ class Board:
                 self.board[row][col] = val
                 self.cubes[row][col].val = val
                 self.draw_change(val, row, col)
-                pygame.time.delay(100)
+                # pygame.time.delay(100)
                 pygame.display.update()
                 self.cubes[row][col].is_seleced = False
                 if self.solve_with_gui(row, col):
@@ -460,12 +516,12 @@ def main():
     pygame.display.set_caption("Sudoku")
     timer = Timer(screen)
     timer.start()
-    board = Board(9, 9, 540, 540, screen)
-    board.redraw()
+    game = Board(9, 9, 540, 540, screen)
+    game.redraw()
     is_running = True
 
     while is_running:
-        board.if_mouse_on_button()
+        game.if_mouse_on_button()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 is_running = False
@@ -473,26 +529,34 @@ def main():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 pos = pygame.mouse.get_pos()
                 print(pos)
-                if pos[0] > board.width or pos[1] > board.height:
+                if pos[0] > game.width or pos[1] > game.height:
                     pass
                 else:
-                    board.clicked(pos)
+                    game.cell_clicked(pos)
 
                 #if restart button clicked
-                if 160 > pos[0] > 60 and 610 > pos[1] > 560:
-                    board.running_status = None
-                    board.restart_board()
+                if 130 > pos[0] > 30 and 610 > pos[1] > 560:
+                    game.running_status = None
+                    game.restart_board()
                     timer.reset()
                     timer.pause_drawing = False
-                    board.redraw()
+                    game.redraw()
 
                 #if check button clicked
-                if 160 > pos[0] > 60 and 670 > pos[1] > 620:
-                    if board.check_solution():
-                        board.done_checking(True)
-                        timer.stop()
+                if 130 > pos[0] > 30 and 670 > pos[1] > 620:
+                    timer.pause_drawing = True
+                    if game.check_solution():
+                        game.done_checking(True)
+                        timer.draw_time()
                     else:
-                        board.done_checking(False)
+                        game.done_checking(False)
+                        timer.pause_drawing = False
+
+                if 185 > pos[0] > 135 and 670 > pos[1] > 560:
+                    game.generating()
+                    game.generate_board()
+                    timer.reset()
+                    timer.pause_drawing = False
 
             if event.type == pygame.KEYDOWN:
                 key = None
@@ -515,17 +579,17 @@ def main():
                 elif event.key == pygame.K_9:
                     key = 9
                 elif event.key == pygame.K_DELETE or event.key == pygame.K_BACKSPACE:
-                    board.delete()
+                    game.delete()
                 elif event.key == pygame.K_SPACE:
                     start_calc_time = timer.time
-                    board.running_status = True
-                    board.restart_board()
-                    board.solve_with_gui()
+                    game.running_status = True
+                    game.restart_board()
+                    game.solve_with_gui()
                     timer.draw_total_calc_time(start_calc_time)
                     timer.pause_drawing = True
-                    board.running_status = False
+                    game.running_status = False
                 if key is not None:
-                    board.draw_change(key)
+                    game.draw_change(key)
         if timer.pause_drawing:
             pass
         else:
